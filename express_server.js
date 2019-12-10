@@ -3,8 +3,9 @@ const app = express();
 const PORT = 8080; // default port 8080
 
 function generateRandomString() {
-
+  return Math.random().toString(36).substring('0', '8').replace('0.', '')
 }
+generateRandomString();
 
 app.set("view engine", "ejs");
 
@@ -46,8 +47,12 @@ app.get("/hello", (req, res) => {
 
 
 app.post("/urls", (req, res) => {
-  console.log(req.body);  
-  res.send("Ok");         
+  const randStr = generateRandomString();
+  urlDatabase[randStr] = {
+    longURL: req.body.longURL,
+    shortURL: req.body.shortURL
+  }
+  res.render("/urls/:shortURL");         
 });
 
 
