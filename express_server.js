@@ -2,15 +2,15 @@ const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
 
+const bodyParser = require("body-parser");
+app.use(bodyParser.urlencoded({extended: true}));
+
 function generateRandomString() {
   return Math.random().toString(36).substring('0', '8').replace('0.', '')
 }
 generateRandomString();
 
 app.set("view engine", "ejs");
-
-const bodyParser = require("body-parser");
-app.use(bodyParser.urlencoded({extended: true}));
 
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
@@ -32,13 +32,21 @@ app.get("/urls", (req, res) => {
   res.render("urls_index", templateVars);
 });
 
-app.get("/urls/new", (req, res) => { // POSITION!!!
+app.get("/urls/new", (req, res) => { 
   res.render("urls_new");
 });
 
 app.get("/urls/:shortURL", (req, res) => {
-  let templateVars = { shortURL: req.params.shortURL, longURL: req.params.longURL };
+  let templateVars = { 
+    shortURL: req.params.shortURL, 
+    longURL: urlDatabase[req.params.shortURL]     
+  };
   res.render("urls_show", templateVars);
+});
+
+app.get("/u/:shortURL", (req, res) => {
+  const longURL = urlDatabase[req.params.shortURL];
+  res.redirect(longURL);
 });
 
 app.get("/hello", (req, res) => {
@@ -47,12 +55,9 @@ app.get("/hello", (req, res) => {
 
 
 app.post("/urls", (req, res) => {
-  const randStr = generateRandomString();
-  urlDatabase[randStr] = {
-    longURL: req.body.longURL,
-    shortURL: req.body.shortURL
-  }
-  res.render("/urls/:shortURL");         
+  let randStr = generateRandomString();
+  urlDatabase[randStr] = req.body.longURL
+  res.redirect("/urls");         
 });
 
 
