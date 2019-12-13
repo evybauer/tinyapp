@@ -3,8 +3,9 @@ const app = express();
 const PORT = 8080; // default port 8080
 const bodyParser = require("body-parser");
 //const cookieParser = require('cookie-parser');
-const cookieSession = require('cookie-session')
+const cookieSession = require('cookie-session');
 const bcrypt = require('bcrypt');
+const { getUserByEmail } = require('./helper');
 
 app.set("view engine", "ejs");
 app.use(bodyParser.urlencoded({extended: true}));
@@ -15,7 +16,7 @@ app.use(cookieSession({
 
   // Cookie Options
   maxAge: 24 * 60 * 60 * 1000 // 24 hours
-}))
+}));
 
 app.use(function(req, res, next) {
   res.locals.user_id = req.session.user_id || false;
@@ -30,14 +31,15 @@ function generateRandomString() {
 }
 generateRandomString();
 
+function urlsForUser(id) {
+  let filteredDatabase = {};
 
-function checkEmail(email) {
-  for (let user_id in users) {
-    if((users[user_id].email === email)){
-      return true;
-    }
+  for (let shortURL in urlDatabase) {
+    let url = urlDatabase[shortURL];
+    if (url.userID === id)
+      filteredDatabase[shortURL] = url;
   }
-  return false;
+  return filteredDatabase;
 }
 
 ///////////////////////////////////////////
@@ -53,7 +55,6 @@ const users = {
     password: 'user2password'
   }
 };
-
 
 const urlDatabase = {
   b6UTxQ: {
@@ -88,27 +89,29 @@ app.get("/login", (req, res) => {
 app.get("/urls", (req, res) => {
   const userId = req.session.user_id;
   const user = users[userId];
-  const filteredUrlDatabase = {};
+  const filteredDatabase = {};
 
   if (!user) {
-  return res.redirect("login");
+    return res.redirect("login");
   }
 
-  for (shortURL in urlDatabase) {
-    const url = urlDatabase[shortURL];
 
-    if (url.userID === user.id) {
-      filteredUrlDatabase[shortURL] = url;
-    }
+  if (req.session.user_id) {
+    const filteredDatabase = urlsForUser(req.session.user_id);
+
+    let templateVars = {
+      user: user,
+      urls: filteredDatabase
+    };
+    res.render("urls_index", templateVars);
+    
+  } else {
+    res.redirect("/login");
   }
-  //urlsForUser(id)
-
-  const templateVars = {
-    user: user,
-    urls: filteredUrlDatabase
-  };
-  res.render("urls_index", templateVars);
 });
+
+////////////////////////////////////////////////////////////urlsForUser(id)
+
 
 app.get("/urls/new", (req, res) => {
 
@@ -136,9 +139,9 @@ app.get("/urls/:shortURL", (req, res) => {
   res.render("urls_show", templateVars);
 });
 
-app.get("/u/:shortURL", (req, res) => {     // Not redirecting! 
+app.get("/u/:shortURL", (req, res) => {     // Not redirecting!
   if (!urlDatabase[req.params.shortURL]) {
-    res.status(400)
+    res.status(400);
   } else {
     res.redirect(urlDatabase[req.params.shortURL].longURL);
   }
@@ -155,50 +158,22 @@ app.get("/users.json", (req, res) => {
 
 //POST REQUESTS
 
-app.post("/register", (req, res) => {
+app.post('/register', (req, res) => {
+  const email = req.body.username;
+  let pass = req.body.password;
+  const password = bcrypt.hashSync(pass, 10);
+  const id = generateRandomString();
 
-  const newEmail = req.body.username;
-  const newPassword = req.body.password;
-  const hashedPassword = bcrypt.hashSync(newPassword, 10);
-
-  //console.log("what is req.body", req.body);
-  if (newPassword === '') {
-    return res.sendStatus(400);
-  }
-
-  if (checkEmail(newEmail)) {
-    return res.status(400).send('Not Found! We already have an account registered with this email!'); 
-  }
-
-  //console.log("what is email password", newEmail, newPassword);
-  for (let user_id in users) {
-    //console.log("on key ", user_id);
-    //console.log("indexing user", users[user_id].email);
-    if (users[user_id].email !== newEmail) {
-      let user_id = generateRandomString();
-      users[user_id] = {
-        id: user_id,
-        email: req.body.username,
-        password: hashedPassword
-      };
-      console.log('id: ' + user_id)
-      console.log('email: ' + req.body.username)
-      console.log('password: ' + hashedPassword)
-      
-
-      foundEmail = users[user_id];
-      // console.log("users object", users);
-
-      //res.cookie('user_id', user_id);
-      req.session.user_id = user_id
-      return res.redirect("/urls");
-
-    } else {
-      res.sendStatus(400);
-    }
+  const findemail = getUserByEmail(email, users);
+  if (email !== '' && password !== '' && !findemail) {
+    let userObj = {id : id, email : email, password : password};
+    users[id] = userObj;
+    req.session.user_id = id;
+    res.redirect('/urls');
+  } else {
+    res.sendStatus(400);
   }
 });
-
 
 app.post("/login", (req, res) => {
 
@@ -215,8 +190,7 @@ app.post("/login", (req, res) => {
     if ((users[user_id].email === newEmail) && (bcrypt.compareSync(newPassword, users[user_id].password))) {
       foundEmail = users[user_id];
       //console.log("users object", users);
-      //res.cookie('user_id', user_id);
-      req.session.user_id = user_id
+      req.session.user_id = user_id;
       res.redirect("/urls");
     }
   }
@@ -262,7 +236,6 @@ app.post("/urls/:shortURL", (req, res) => {
 });
 
 app.post("/logout", (req, res) => {
-  //res.clearCookie('user_id');
   req.session.user_id = null;
   res.redirect("/urls");
 });
