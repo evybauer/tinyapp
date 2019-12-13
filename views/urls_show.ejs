@@ -23,7 +23,10 @@
     <div class="card-footer text-muted">
       <h4> Edit </h4>
       <form method="POST" action="/urls/<%= shortURL %>">
-        <p> New URL: <input name="edited" type="text" placeholder="<%= longURL %>"> <input class="btn btn-primary" type="submit" value="Submit"></p>
+        <p> New URL:
+          <input name="longURL" type="text" placeholder="<%= longURL %>">
+          <input class="btn btn-primary" type="submit" value="Submit">
+        </p>
       </form>
     </div>
   </div>
