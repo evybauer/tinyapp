@@ -134,7 +134,7 @@ app.get("/urls/:shortURL", (req, res) => {
   res.render("urls_show", templateVars);
 });
 
-app.get("/u/:shortURL", (req, res) => {     // Not redirecting!
+app.get("/u/:shortURL", (req, res) => {     
 
   if (!urlDatabase[req.params.shortURL]) {
     res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>👉 ShortURL not found!</font face></h2>");
