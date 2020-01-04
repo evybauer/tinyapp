@@ -1,10 +1,14 @@
 const express = require("express");
 const app = express();
-const PORT = 8080; // default port 8080
 const bodyParser = require("body-parser");
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcrypt');
 const { getUserByEmail, generateRandomString, urlsForUser } = require('./helper');
+const users = require('./sample');
+const urlDatabase = require('./sample');
+
+
+const PORT = 8080; // default port 8080
 
 app.set("view engine", "ejs");
 app.use(bodyParser.urlencoded({extended: true}));
@@ -21,37 +25,10 @@ app.use(function(req, res, next) {
   next();
 });
 
-// ----------  DATABASES ---------- //
-
-const users = {
-  'elB92y': {
-    id: 'elB92y',
-    email: 'user@example.com',
-    password: 'user-password'
-  },
-  '9Sa3Bf': {
-    id: '0Se7Gs',
-    email: 'user2@example.com',
-    password: 'user2password'
-  }
-};
-
-const urlDatabase = {
-  b6UTxQ: {
-    longURL: "https://www.tsn.ca",
-    userID: "aJ48lW"
-  },
-  i3BoGr: {
-    longURL: "https://www.google.ca",
-    userID: "aJ48lW"
-  }
-};
-
-
 // ----------  GET ROUTES ---------- //
 
 app.get("/", (req, res) => {
-  if (req.session.userId) {
+  if (req && req.session && req.session.userId) {
     res.redirect("/urls");
   } else {
     res.redirect("/login");
@@ -71,7 +48,7 @@ app.get("/urls", (req, res) => {
   const user = users[userId];
 
   if (!user) {
-    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>🔐 You have to login first.</font face></h2>");
+    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>🔐 You have to <a href='/login'> login </a> first.</font face></h2>");
   }
 
   if (req.session.user_id) {
@@ -90,9 +67,7 @@ app.get("/urls/new", (req, res) => {
   const userId = req.session.user_id;
   const user = users[userId];
 
-  let templateVars = {
-    user: user,
-  };
+  let templateVars = { user };
 
   if (user) {
     return res.render("urls_new", templateVars);
@@ -108,7 +83,7 @@ const userId = req.session.user_id;
   const user = users[userId];
 
   if (!user) {
-    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>🔐 You have to login first.</font face></h2>");
+    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>🔐 You have to <a href='/login'> login </a> first.</font face></h2>");
   }
 
   if (userId === urlDatabase[req.params.shortURL].userID) {
@@ -121,22 +96,33 @@ const userId = req.session.user_id;
     };
     res.render("urls_show", templateVars);
   } else if (userId !== urlDatabase[req.params.shortURL].userID) {
-    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2> 🔐 This URL does not belong to you </font face></h2>");
+    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2> 🔐 This URL does not belong to you. <a href='/urls'> Try again! </a></font face></h2>");
   } else if (!userId) {
-    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2> 🔐 Please, login first </font face></h2>");
+    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2> 🔐 Please, <a href='/login'> login </a> first </font face></h2>");
   }
 });
 
 app.get("/u/:shortURL", (req, res) => {     
   const userId = req.session.user_id;
   const user = users[userId];
-  
-  if (user) {
+
+  if (!user) {
+    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>🔐 You have to <a href='/login'> login </a> first.</font face></h2>");
+  }
+
+  if (userId === urlDatabase[req.params.shortURL].userID) {
+    const filteredDatabase = urlsForUser(req.session.user_id, urlDatabase);
+    let templateVars = {
+      user: users[req.session.user_id],
+      shortURL: req.params.shortURL,
+      longURL: urlDatabase[req.params.shortURL].longURL,
+      urls: filteredDatabase
+    };
     res.redirect(urlDatabase[req.params.shortURL].longURL);
-  } else if (!urlDatabase[req.params.shortURL]) {
-    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>👉 ShortURL not found!</font face></h2>");
-  } else {
-    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2> 🔐 Please, login first </font face></h2>");
+  } else if (userId !== urlDatabase[req.params.shortURL].userID) {
+    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2> 🔐 This URL does not belong to you. <a href='/urls'> Try again! </a> </font face></h2>");
+  } else if (!userId) {
+    res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2> 🔐 Please, <a href='/login'> login </a> first </font face></h2>");
   }
 });
 
@@ -160,7 +146,7 @@ app.post('/register', (req, res) => {
   const id = generateRandomString();
   const findemail = getUserByEmail(email, users);
 
-  if (email !== '' && password !== '' && !findemail) {
+  if (email && password && !findemail)  {
     const userObj = {
       id : id,
       email : email,
@@ -195,7 +181,7 @@ app.post("/login", (req, res) => {
 });
 
 app.post("/urls", (req, res) => {
-  if (req.body.longURL === '') {
+  if (!req.body.longURL) {
     return res.send("<h1><font face='arial'>⚠️ Ops, something went wrong!</h1><br><h2>💻 URL not defined! Please, input the URL you want to shorten.</font face></h2>");
   }
 
@@ -223,7 +209,7 @@ app.post("/urls/:shortURL/delete", (req, res) => {
 app.post("/urls/:shortURL", (req, res) => {
   const userId = req.session.user_id;
   const user = users[userId];
-  const longURL = req.body.longURL;
+  const { longURL } = req.body; 
   const shortURL = req.params.shortURL;
 
   if (req.body.longURL === '') {
